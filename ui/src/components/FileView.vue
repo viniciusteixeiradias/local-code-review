@@ -38,6 +38,13 @@ const bars = computed(() => {
 const forceLarge = ref(false);
 const size = computed(() => props.file.additions + props.file.deletions);
 const isLarge = computed(() => size.value > LARGE_DIFF && !forceLarge.value);
+/** Added/new files only have a new side (deleted only an old one): split view would leave half the width empty. */
+const oneSide = computed<Side | null>(() => {
+  const st = props.file.status;
+  return st === "added" || st === "untracked" ? "new" : st === "deleted" ? "old" : null;
+});
+const layout = computed(() => (oneSide.value ? "unified" : props.view));
+const numCols = computed(() => (oneSide.value ? 1 : 2));
 const renderable = computed(() => !props.collapsed && !isLarge.value && !props.file.binary && !props.file.tooLarge && props.file.hunks.length > 0);
 
 // ---- syntax highlighting: tokenize the whole old/new file, then look lines up by number ----
@@ -205,7 +212,7 @@ const rows = computed<Row[]>(() => {
     }
   };
   const pushLine = (l: DiffLine, key: string) => {
-    if (props.view === "unified") {
+    if (layout.value === "unified") {
       const side: Side = l.type === "del" ? "old" : "new";
       out.push({ kind: "line", key, l, html: lineHtml(l), side, n: side === "old" ? l.oldNo : l.newNo });
     } else {
@@ -228,7 +235,7 @@ const rows = computed<Row[]>(() => {
 
   props.file.hunks.forEach((h, hi) => {
     pushGap(hi, h.header);
-    if (props.view === "unified") {
+    if (layout.value === "unified") {
       h.lines.forEach((l, li) => {
         const side: Side = l.type === "del" ? "old" : "new";
         out.push({ kind: "line", key: `l${hi}-${li}`, l, html: lineHtml(l), side, n: side === "old" ? l.oldNo : l.newNo });
@@ -341,12 +348,12 @@ async function copyPath() {
       </div>
       <div v-else-if="!file.hunks.length" class="placeholder">{{ file.status === "renamed" ? "File renamed without changes" : "Empty file" }}</div>
 
-      <table v-else-if="view === 'unified'" class="diff unified">
-        <colgroup><col class="c-num" /><col class="c-num" /><col /></colgroup>
+      <table v-else-if="layout === 'unified'" class="diff unified">
+        <colgroup><col v-for="i in numCols" :key="i" class="c-num" /><col /></colgroup>
         <tbody>
           <template v-for="r in rows" :key="r.key">
             <tr v-if="r.kind === 'hunk'" class="hunk-header" :class="{ expandable: r.gap !== null }">
-              <td class="expander" :colspan="2">
+              <td class="expander" :colspan="numCols">
                 <template v-if="r.gap !== null">
                   <button v-if="r.hidden <= STEP" class="exp-btn" :title="`Show ${r.hidden} hidden line${r.hidden === 1 ? '' : 's'}`" @click="expandGap(r.gap, 'all')"><Icon name="unfold" :size="14" /></button>
                   <template v-else>
@@ -360,12 +367,12 @@ async function copyPath() {
               </td>
             </tr>
             <tr v-else-if="r.kind === 'line'" class="line" :class="[r.l.type, { selected: isSel(r.side, r.n) }]">
-              <td class="num clickable" @mousedown="down(r.side, r.n, $event)" @mouseenter="enter(r.side, r.n)">{{ r.l.oldNo ?? "" }}</td>
-              <td class="num clickable" @mousedown="down(r.side, r.n, $event)" @mouseenter="enter(r.side, r.n)">{{ r.l.newNo ?? "" }}</td>
+              <td v-if="oneSide !== 'new'" class="num clickable" @mousedown="down(r.side, r.n, $event)" @mouseenter="enter(r.side, r.n)">{{ r.l.oldNo ?? "" }}</td>
+              <td v-if="oneSide !== 'old'" class="num clickable" @mousedown="down(r.side, r.n, $event)" @mouseenter="enter(r.side, r.n)">{{ r.l.newNo ?? "" }}</td>
               <td class="code" @mouseenter="enter(r.side, r.n)"><button class="add-btn" title="Comment on this line (drag for a range)" @mousedown="down(r.side, r.n, $event)"><Icon name="comment-add" :size="14" /></button><span class="sign">{{ sign(r.l) }}</span><span v-html="r.html || '&#8203;'" /><span v-if="r.l.noNewline" class="nonl" title="No newline at end of file">∅⏎</span></td>
             </tr>
-            <tr v-else-if="r.kind === 'thread'" class="thread-row"><td colspan="3"><Thread :c="r.c" /></td></tr>
-            <tr v-else-if="r.kind === 'composer' && myComposer" class="thread-row"><td colspan="3"><Composer v-bind="myComposer" /></td></tr>
+            <tr v-else-if="r.kind === 'thread'" class="thread-row"><td :colspan="numCols + 1"><Thread :c="r.c" /></td></tr>
+            <tr v-else-if="r.kind === 'composer' && myComposer" class="thread-row"><td :colspan="numCols + 1"><Composer v-bind="myComposer" /></td></tr>
           </template>
         </tbody>
       </table>

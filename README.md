@@ -54,7 +54,7 @@ lcr list                      list comments
 lcr clear [--all]             delete resolved comments (--all: everything)
 ```
 
-State lives in `.git/lcr/review.json`: never committed, per repo (and per worktree).
+State lives in `.git/lcr/reviews/<branch>.json`: never committed, one review per branch (and per worktree), so a new branch / PR starts clean.
 
 ## Develop
 

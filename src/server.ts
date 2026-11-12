@@ -3,7 +3,7 @@ import { join, normalize, relative } from "node:path";
 import { reanchor } from "./anchor.ts";
 import { computeDiff, readSide, type Repo } from "./git.ts";
 import { buildPrompt } from "./prompt.ts";
-import { Store, makeComment } from "./store.ts";
+import { Store, currentBranch, makeComment } from "./store.ts";
 import { listPanes, sendToPane } from "./tmux.ts";
 import type { Delivery, DiffOptions, DiffSnapshot, DiffTarget, ReviewComment, ServerEvent, Side } from "./types.ts";
 
@@ -60,7 +60,8 @@ export function runningServer(repo: Repo): { url: string; pid: number; version: 
 }
 
 export async function startServer(repo: Repo, target: DiffTarget, opts: { port: number }) {
-  const store = new Store(join(repo.gitDir, "lcr"));
+  const store = new Store(join(repo.gitDir, "lcr"), () => currentBranch(repo.gitDir));
+  let storeFile = store.file;
   let options: DiffOptions = { context: 3, ignoreWhitespace: false, expanded: [] };
   let snapshot: DiffSnapshot = {
     files: [], baseRev: "", label: "", branch: "", repoName: repo.name, options, generatedAt: 0,
@@ -83,6 +84,11 @@ export async function startServer(repo: Repo, target: DiffTarget, opts: { port: 
           snapshot = await computeDiff(repo, target, options);
         } catch (e) {
           snapshot = { ...snapshot, error: String((e as Error).message ?? e), generatedAt: Date.now() };
+        }
+        // Branch switched (HEAD is watched): the UI must swap to that branch's comments.
+        if (store.file !== storeFile) {
+          storeFile = store.file;
+          publish({ type: "store", data: store.read() });
         }
         await reanchorAll();
         publish({ type: "diff", data: snapshot });
@@ -149,8 +155,8 @@ export async function startServer(repo: Repo, target: DiffTarget, opts: { port: 
   }
   let storeTimer: ReturnType<typeof setTimeout> | null = null;
   watchers.push(
-    watch(store.dir, (_ev, f) => {
-      if (f?.toString() !== "review.json") return;
+    watch(store.reviewsDir, (_ev, f) => {
+      if (!f || join(store.reviewsDir, f.toString()) !== store.file) return;
       if (storeTimer) clearTimeout(storeTimer);
       storeTimer = setTimeout(() => publish({ type: "store", data: store.read() }), 30);
     }),

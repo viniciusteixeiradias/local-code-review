@@ -35,55 +35,79 @@ export function makeComment(
   };
 }
 
+/** Current branch name read straight from HEAD (cheap enough to call on every store access). */
+export function currentBranch(gitDir: string): string {
+  try {
+    const head = readFileSync(join(gitDir, "HEAD"), "utf8").trim();
+    const m = head.match(/^ref: refs\/heads\/(.+)$/);
+    return m ? m[1]! : "(detached)";
+  } catch {
+    return "(unknown)";
+  }
+}
+
 /**
- * JSON file in .git/lcr/review.json, shared by the web server and the CLI
- * (which Claude calls to resolve comments). Writes are locked + atomic.
+ * JSON file per branch in .git/lcr/reviews/<branch>.json, shared by the web server and the CLI
+ * (which Claude calls to resolve comments). Each branch is its own review, so starting work on a
+ * new branch (a new PR) starts with a clean slate. Writes are locked + atomic.
  */
 export class Store {
-  readonly file: string;
-  private readonly lock: string;
+  readonly reviewsDir: string;
 
-  constructor(readonly dir: string) {
-    mkdirSync(dir, { recursive: true });
-    this.file = join(dir, "review.json");
-    this.lock = join(dir, "review.lock");
+  constructor(
+    readonly dir: string,
+    private readonly branch: () => string = () => "default",
+  ) {
+    this.reviewsDir = join(dir, "reviews");
+    mkdirSync(this.reviewsDir, { recursive: true });
   }
 
-  read(): ReviewStore {
+  /** Review file for the branch that's checked out right now. */
+  get file(): string {
+    return join(this.reviewsDir, `${encodeURIComponent(this.branch())}.json`);
+  }
+
+  private readFile(file: string): ReviewStore {
     try {
-      return { ...emptyStore(), ...JSON.parse(readFileSync(this.file, "utf8")) };
+      return { ...emptyStore(), ...JSON.parse(readFileSync(file, "utf8")) };
     } catch {
       return emptyStore();
     }
   }
 
+  read(): ReviewStore {
+    return this.readFile(this.file);
+  }
+
   mutate<T>(fn: (s: ReviewStore) => T): T {
-    this.acquire();
+    const file = this.file; // pin it: a checkout mid-mutation must not split the read and the write
+    const lock = `${file}.lock`;
+    this.acquire(lock);
     try {
-      const s = this.read();
+      const s = this.readFile(file);
       const result = fn(s);
-      const tmp = `${this.file}.${process.pid}.tmp`;
+      const tmp = `${file}.${process.pid}.tmp`;
       writeFileSync(tmp, JSON.stringify(s, null, 2));
-      renameSync(tmp, this.file);
+      renameSync(tmp, file);
       return result;
     } finally {
       try {
-        unlinkSync(this.lock);
+        unlinkSync(lock);
       } catch {}
     }
   }
 
-  private acquire() {
+  private acquire(lock: string) {
     const deadline = Date.now() + 3000;
     for (;;) {
       try {
-        closeSync(openSync(this.lock, "wx"));
+        closeSync(openSync(lock, "wx"));
         return;
       } catch {
         try {
-          if (Date.now() - statSync(this.lock).mtimeMs > 5000) unlinkSync(this.lock);
+          if (Date.now() - statSync(lock).mtimeMs > 5000) unlinkSync(lock);
         } catch {}
-        if (Date.now() > deadline) throw new Error(`Could not lock ${this.lock}`);
+        if (Date.now() > deadline) throw new Error(`Could not lock ${lock}`);
         Bun.sleepSync(15);
       }
     }

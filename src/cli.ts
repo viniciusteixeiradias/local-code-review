@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { findRepo, type Repo } from "./git.ts";
 import { buildPrompt, location } from "./prompt.ts";
-import { Store } from "./store.ts";
+import { Store, currentBranch } from "./store.ts";
 import type { DiffTarget, ReviewComment } from "./types.ts";
 
 const HELP = `lcr - local code review for AI-assisted development
@@ -15,6 +15,8 @@ Usage:
   lcr list                      List comments and their status
   lcr clear [--all]             Delete resolved comments (--all: every comment)
 
+Comments are kept per branch: each branch (PR) is its own review.
+
 Options (UI):
   base-ref         Compare the working tree with merge-base(base-ref, HEAD), e.g. "main"
   --staged         Review only staged changes
@@ -24,7 +26,7 @@ Options (UI):
 `;
 
 function storeFor(repo: Repo) {
-  return new Store(join(repo.gitDir, "lcr"));
+  return new Store(join(repo.gitDir, "lcr"), () => currentBranch(repo.gitDir));
 }
 
 function takeFlag(args: string[], ...names: string[]): boolean {
