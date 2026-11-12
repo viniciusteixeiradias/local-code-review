@@ -35,6 +35,20 @@ export function makeComment(
   };
 }
 
+/** Parse a review file, or null if it isn't one (invalid JSON, or not the expected shape). */
+export function parseStore(text: string): ReviewStore | null {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
+  const s = { ...emptyStore(), ...(data as Partial<ReviewStore>) };
+  if (!Array.isArray(s.comments) || typeof s.viewed !== "object" || s.viewed === null) return null;
+  return s;
+}
+
 /** Current branch name read straight from HEAD (cheap enough to call on every store access). */
 export function currentBranch(gitDir: string): string {
   try {
@@ -67,12 +81,31 @@ export class Store {
     return join(this.reviewsDir, `${encodeURIComponent(this.branch())}.json`);
   }
 
+  /**
+   * A missing file is an empty review. A file that isn't a valid review is moved aside instead of
+   * being treated as empty: otherwise the next write would replace it and every comment would be lost.
+   * Other errors (e.g. permissions) are thrown, for the same reason.
+   */
   private readFile(file: string): ReviewStore {
+    let text: string;
     try {
-      return { ...emptyStore(), ...JSON.parse(readFileSync(file, "utf8")) };
-    } catch {
-      return emptyStore();
+      text = readFileSync(file, "utf8");
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return emptyStore();
+      throw e;
     }
+    const parsed = parseStore(text);
+    if (parsed) return parsed;
+
+    const backup = `${file}.corrupt-${Date.now()}`;
+    try {
+      // Only move it if it's still the bad file: another process may have just replaced it.
+      if (readFileSync(file, "utf8") === text) {
+        renameSync(file, backup);
+        console.warn(`lcr: ${file} is not a valid review file. Moved it to ${backup} and started a fresh review.`);
+      }
+    } catch {}
+    return emptyStore();
   }
 
   read(): ReviewStore {
