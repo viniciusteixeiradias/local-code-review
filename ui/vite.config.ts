@@ -11,9 +11,11 @@ export default defineConfig({
   plugins: [vue()],
   build: { outDir: "dist", emptyOutDir: true, chunkSizeWarningLimit: 5000 },
   server: {
+    // changeOrigin: send lcr's own Host header, which the server requires (src/guard.ts).
+    // The Origin header stays http://localhost:5173, so start lcr with LCR_DEV_ORIGIN set to it.
     proxy: {
-      "/api": api,
-      "/ws": { target: api.replace("http", "ws"), ws: true },
+      "/api": { target: api, changeOrigin: true },
+      "/ws": { target: api.replace("http", "ws"), ws: true, changeOrigin: true },
     },
   },
 });

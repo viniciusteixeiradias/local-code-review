@@ -22,11 +22,13 @@ bun link           # optional: puts `lcr` on your PATH
 ## Development loop
 
 ```sh
-lcr --no-open --port 4747     # API server (terminal 1)
-bun run dev:ui                # Vite + HMR on :5173, proxies to :4747 (terminal 2)
+LCR_DEV_ORIGIN=http://localhost:5173 lcr --no-open --port 4747   # API server (terminal 1)
+bun run dev:ui                                                  # Vite + HMR on :5173, proxies to :4747 (terminal 2)
 ```
 
 Run `lcr` inside any git repo with changes to try it against real diffs.
+
+The server only accepts requests from its own page, so other websites can't read your code or drive it (see `src/guard.ts`). `LCR_DEV_ORIGIN` lets the Vite dev page through as well. Only use it while developing.
 
 ## Project layout
 
@@ -35,6 +37,7 @@ Run `lcr` inside any git repo with changes to try it against real diffs.
 | `bin/lcr` | CLI entry point |
 | `src/cli.ts` | Argument parsing and subcommands (`feedback`, `resolve`, `reply`, …) |
 | `src/server.ts` | HTTP server + live updates for the UI |
+| `src/guard.ts` | Rejects requests that don't come from lcr's own page |
 | `src/git.ts`, `src/diff.ts` | Running git and parsing diffs |
 | `src/store.ts` | Review/comment state in `.git/lcr/reviews/<branch>.json` |
 | `src/anchor.ts` | Re-anchoring comments when lines move |

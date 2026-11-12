@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync, unlinkSync, watch, writeFileSync, 
 import { join, normalize, relative } from "node:path";
 import { reanchor } from "./anchor.ts";
 import { computeDiff, readSide, type Repo } from "./git.ts";
+import { devOrigins, rejectForeign } from "./guard.ts";
 import { buildPrompt } from "./prompt.ts";
 import { Store, currentBranch, makeComment } from "./store.ts";
 import { listPanes, sendToPane } from "./tmux.ts";
@@ -330,6 +331,22 @@ export async function startServer(repo: Repo, target: DiffTarget, opts: { port: 
     },
   } as const;
 
+  // Every request goes through the same-origin check first (see guard.ts). Bun runs `routes`
+  // before `fetch`, so the routes are wrapped here and `fetch` checks on its own.
+  const allowedDevOrigins = devOrigins();
+  const guard = (req: Request): Response | null => {
+    const why = rejectForeign(req, server.port!, allowedDevOrigins);
+    return why ? fail(why, 403) : null;
+  };
+  const guardedRoutes = Object.fromEntries(
+    Object.entries(routes).map(([path, methods]) => [
+      path,
+      Object.fromEntries(
+        Object.entries(methods).map(([method, handler]) => [method, (req: any) => guard(req) ?? (handler as (r: any) => unknown)(req)]),
+      ),
+    ]),
+  );
+
   let server: ReturnType<typeof Bun.serve>;
   let port = opts.port;
   for (let attempt = 0; ; attempt++) {
@@ -337,8 +354,10 @@ export async function startServer(repo: Repo, target: DiffTarget, opts: { port: 
       server = Bun.serve({
         port,
         hostname: "127.0.0.1",
-        routes: routes as any,
+        routes: guardedRoutes as any,
         fetch(req, srv) {
+          const denied = guard(req);
+          if (denied) return denied;
           const { pathname } = new URL(req.url);
           if (pathname === "/ws") return srv.upgrade(req, { data: undefined }) ? undefined : new Response("Expected websocket", { status: 400 });
           if (pathname.startsWith("/api/")) return fail("Not found", 404);

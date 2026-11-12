@@ -67,8 +67,8 @@ State lives in `.git/lcr/reviews/<branch>.json`: never committed, one review per
 ## Develop
 
 ```sh
-lcr --no-open --port 4747     # API server (terminal 1)
-bun run dev:ui                # Vite + HMR on :5173, proxies to :4747 (terminal 2)
+LCR_DEV_ORIGIN=http://localhost:5173 lcr --no-open --port 4747   # API server (terminal 1)
+bun run dev:ui                                                  # Vite + HMR on :5173, proxies to :4747 (terminal 2)
 bun test && bun run typecheck
 ```
 
