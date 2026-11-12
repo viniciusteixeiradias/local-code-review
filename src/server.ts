@@ -381,17 +381,26 @@ export async function startServer(repo: Repo, target: DiffTarget, opts: { port: 
 
   const url = `http://127.0.0.1:${server.port}`;
   writeFileSync(serverInfoPath(repo), JSON.stringify({ pid: process.pid, url, version: codeVersion() }));
-  const cleanup = () => {
+  /** Stop serving and watching, and remove server.json if it's ours. Ctrl+C goes through here too. */
+  const stop = () => {
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
     try {
       const info = JSON.parse(readFileSync(serverInfoPath(repo), "utf8"));
       if (info.pid === process.pid) unlinkSync(serverInfoPath(repo));
     } catch {}
     watchers.forEach((w) => w.close());
+    if (timer) clearTimeout(timer);
+    if (storeTimer) clearTimeout(storeTimer);
+    server.stop(true);
+  };
+  const onSignal = () => {
+    stop();
     process.exit(0);
   };
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
 
   await refresh();
-  return { url };
+  return { url, stop };
 }
