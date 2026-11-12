@@ -65,3 +65,11 @@ bun test && bun run typecheck
 ```
 
 Layout: `src/` = CLI and server (diff parsing, watcher, store, re-anchoring, tmux). `ui/` = Vue 3 app, built to `ui/dist` and served by the CLI.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines, and check issues labeled `good first issue` for a place to start. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security issues: see [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE)

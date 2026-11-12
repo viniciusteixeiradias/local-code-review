@@ -1,0 +1,36 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `lcr main` in a repo with ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: lcr version / commit
+      placeholder: e.g. 0.1.0 or a commit SHA
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: e.g. macOS 15, Bun 1.2.x, git 2.47, tmux 3.5, Chrome
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      render: shell
