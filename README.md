@@ -1,6 +1,14 @@
 # lcr: local code review
 
-A GitHub-style review UI for your **uncommitted** changes, built for reviewing what Claude Code wrote without pushing to GitHub first.
+A GitHub-style review UI for your local, **uncommitted** changes. Review your work like a PR before you push, and optionally send your comments straight to Claude Code to fix.
+
+![lcr reviewing a change: file tree, syntax-highlighted diff, and a comment thread with Claude's reply](docs/screenshot.png)
+
+## Project status
+
+I built lcr because I wanted to review my local changes the way I review a PR on GitHub, before pushing anything, and couldn't find a tool that did that. The first version was written quickly with AI assistance to prove the idea: it works, but parts of the code haven't had careful human review yet.
+
+From here on, development is deliberate: changes go through PRs with review and tests. Issues, feedback and contributions (including cleanups of the existing code) are very welcome.
 
 - **Submit to Claude**: batch your comments and send them with one click, straight into the tmux pane running Claude Code (auto-detected), to the clipboard, or into a queue Claude pulls with `lcr feedback`.
 - **Live**: the diff updates as files change. "Viewed" is tied to the file's changes, so a file you already viewed is un-viewed (and flagged *Changed since viewed*) when Claude edits it again.

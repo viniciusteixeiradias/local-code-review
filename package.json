@@ -1,7 +1,7 @@
 {
   "name": "local-code-review",
   "version": "0.1.0",
-  "description": "Local GitHub-style code review UI that sends your comments to Claude Code",
+  "description": "Review your local changes like a GitHub PR, before pushing. Optionally send comments to Claude Code.",
   "type": "module",
   "bin": {
     "lcr": "bin/lcr"
